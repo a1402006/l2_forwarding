@@ -30,6 +30,9 @@
               org.opendaylight.controller.sal.action,
               org.opendaylight.controller.sal.flowprogrammer,
               org.opendaylight.controller.switchmanager,
+              org.opendaylight.controller.topologymanager,
+              org.opendaylight.controller.hosttracker*,
+              org.opendaylight.controller.sal.routing,
               org.apache.felix.dm,
               org.osgi.service.component,
               org.slf4j,
@@ -78,6 +81,15 @@
       <artifactId>sal</artifactId>
       <version>${sal.version}</version>
     </dependency>
-
+ 	<dependency>
+		<groupId>org.opendaylight.controller</groupId>
+		<artifactId>hosttracker</artifactId>
+		<version>0.5.1</version>
+ 	</dependency>
+	<dependency>
+		<groupId>org.opendaylight.controller</groupId>
+		<artifactId>topologymanager</artifactId>
+		<version>0.4.1</version>
+	</dependency>
   </dependencies>
 </project>

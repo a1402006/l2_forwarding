@@ -222,6 +222,7 @@ public class TutorialL2Forwarding implements IListenDataPacket {
 					logger.debug("Installed flow {} in node {}", f,
 							incoming_node);
 					sendPacket(inPkt, dst_connector);
+					return PacketResult.CONSUME;
 				} else
 					floodPacket(inPkt);
 			}
