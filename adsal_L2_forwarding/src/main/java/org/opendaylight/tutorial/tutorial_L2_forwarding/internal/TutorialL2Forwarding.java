@@ -17,10 +17,15 @@
 
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 import org.opendaylight.controller.sal.action.Action;
@@ -42,6 +47,7 @@ import org.opendaylight.controller.sal.packet.PacketResult;
 import org.opendaylight.controller.sal.packet.RawPacket;
 import org.opendaylight.controller.sal.utils.Status;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
+import org.opendaylight.controller.switchmanager.Switch;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -130,7 +136,39 @@ public class TutorialL2Forwarding implements IListenDataPacket {
 	 * 
 	 */
 	void start() {
+		if (isRemoveAllFlows()) {
+			logger.info("DELTETING ALL FLOWS!");
+			List<Switch> switches = switchManager.getNetworkDevices();
+			for (Switch switchNode : switches) {
+				Status status = programmer.removeAllFlows(switchNode.getNode());
+				if (!status.isSuccess()) {
+					logger.error("error while removing flows: "
+							+ status.getDescription());
+				}
+			}
+		}
 		logger.info("Started");
+	}
+
+	/**
+	 * patch method to delete all flows when needed
+	 * 
+	 * @return
+	 */
+	private boolean isRemoveAllFlows() {
+		InputStream inputStream;
+		try {
+			inputStream = new FileInputStream(new File(
+					"configuration/config.ini"));
+			Properties prop = new Properties();
+			prop.load(inputStream);
+			String property = prop.getProperty(
+					"topologyForwarding.deleteAllFlow", "false");
+			return property.equals("true");
+		} catch (IOException e) {
+			logger.warn("cant open config.ini");
+			return false;
+		}
 	}
 
 	/**
