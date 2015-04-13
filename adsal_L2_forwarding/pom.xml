@@ -47,7 +47,6 @@
             </Bundle-Activator>
           </instructions>
           <manifestLocation>${project.basedir}/META-INF</manifestLocation>
-          <buildDirectory>${project.basedir}/../distribution/opendaylight-osgi-adsal/target/distribution-osgi-adsal-1.1.0-SNAPSHOT-osgipackage/opendaylight/plugins/</buildDirectory> <!-- TODO use pom var -->
         </configuration>
       </plugin>
     </plugins>
@@ -84,7 +83,7 @@
  	<dependency>
 		<groupId>org.opendaylight.controller</groupId>
 		<artifactId>hosttracker</artifactId>
-		<version>0.5.1</version>
+		<version>0.5.2-Helium</version>
  	</dependency>
 	<dependency>
 		<groupId>org.opendaylight.controller</groupId>

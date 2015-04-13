@@ -14,7 +14,9 @@ import java.util.Dictionary;
 import org.apache.felix.dm.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.opendaylight.controller.hosttracker.IfHostListener;
 import org.opendaylight.controller.hosttracker.IfIptoHost;
+import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.sal.core.ComponentActivatorAbstractBase;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
@@ -31,6 +33,7 @@ public class Activator extends ComponentActivatorAbstractBase {
 	 * are done by the ComponentActivatorAbstractBase.
 	 * 
 	 */
+	@Override
 	public void init() {
 
 	}
@@ -40,6 +43,7 @@ public class Activator extends ComponentActivatorAbstractBase {
 	 * ComponentActivatorAbstractBase
 	 * 
 	 */
+	@Override
 	public void destroy() {
 
 	}
@@ -53,6 +57,7 @@ public class Activator extends ComponentActivatorAbstractBase {
 	 *         instantiated in order to get an fully working implementation
 	 *         Object
 	 */
+	@Override
 	public Object[] getImplementations() {
 		Object[] res = { TopologyForwarding.class };
 		return res;
@@ -73,13 +78,14 @@ public class Activator extends ComponentActivatorAbstractBase {
 	 *            per-container different behavior if needed, usually should not
 	 *            be the case though.
 	 */
+	@Override
 	public void configureInstance(Component c, Object imp, String containerName) {
 		if (imp.equals(TutorialL2Forwarding.class)) {
 			// export the services
 			Dictionary<String, String> props = new Hashtable<String, String>();
 			props.put("salListenerName", "tutorial_L2_forwarding");
-			c.setInterface(new String[] { IListenDataPacket.class.getName() },
-					props);
+			c.setInterface(new String[] { IListenDataPacket.class.getName(),
+					IfNewHostNotify.class.getName() }, props);
 
 			// register dependent modules
 			c.add(createContainerServiceDependency(containerName)
@@ -101,8 +107,8 @@ public class Activator extends ComponentActivatorAbstractBase {
 			// export the services
 			Dictionary<String, String> props = new Hashtable<String, String>();
 			props.put("salListenerName", "tutorial_L2_forwarding");
-			c.setInterface(new String[] { IListenDataPacket.class.getName() },
-					props);
+			c.setInterface(new String[] { IListenDataPacket.class.getName(),
+					IfNewHostNotify.class.getName() }, props);
 
 			// register dependent modules
 			c.add(createContainerServiceDependency(containerName)

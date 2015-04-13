@@ -17,20 +17,33 @@
 
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Dictionary;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
+import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.ConstructionException;
+import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
 import org.opendaylight.controller.sal.core.Path;
@@ -48,10 +61,11 @@ import org.opendaylight.controller.sal.packet.RawPacket;
 import org.opendaylight.controller.sal.routing.IRouting;
 import org.opendaylight.controller.sal.utils.Status;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
+import org.opendaylight.controller.switchmanager.Switch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class TopologyForwarding implements IListenDataPacket {
+public class TopologyForwarding implements IListenDataPacket, IfNewHostNotify {
 	private static final Logger logger = LoggerFactory
 			.getLogger(TopologyForwarding.class);
 	private ISwitchManager switchManager = null;
@@ -59,6 +73,8 @@ public class TopologyForwarding implements IListenDataPacket {
 	private IDataPacketService dataPacketService = null;
 	private IfIptoHost hostTracker;
 	private IRouting routing;
+	private HashMap<Flow, Node> _allFlows;
+	private HashMap<HostNodeConnector, List<Flow>> _hostFlows;
 
 	void setDataPacketService(IDataPacketService s) {
 		this.dataPacketService = s;
@@ -129,6 +145,19 @@ public class TopologyForwarding implements IListenDataPacket {
 	 * 
 	 */
 	void destroy() {
+		logger.info("deleting forwarding flows");
+		for (Flow flow : _allFlows.keySet()) {
+			removeFlow(flow);
+
+		}
+	}
+
+	private void removeFlow(Flow flow) {
+		Status status = programmer.removeFlow(_allFlows.get(flow), flow);
+		if (!status.isSuccess())
+			logger.error("error while removing flow: "
+					+ status.getDescription());
+		_allFlows.remove(flow);
 	}
 
 	/**
@@ -137,7 +166,41 @@ public class TopologyForwarding implements IListenDataPacket {
 	 * 
 	 */
 	void start() {
+		_allFlows = new HashMap<>();
+		_hostFlows = new HashMap<>();
+		if (isRemoveAllFlows()) {
+			logger.info("DELTETING ALL FLOWS!");
+			List<Switch> switches = switchManager.getNetworkDevices();
+			for (Switch switchNode : switches) {
+				Status status = programmer.removeAllFlows(switchNode.getNode());
+				if (!status.isSuccess()) {
+					logger.error("error while removing flows: "
+							+ status.getDescription());
+				}
+			}
+		}
 		logger.info("Started");
+	}
+
+	/**
+	 * patch method to delete all flows when needed
+	 * 
+	 * @return
+	 */
+	private boolean isRemoveAllFlows() {
+		InputStream inputStream;
+		try {
+			inputStream = new FileInputStream(new File(
+					"configuration/config.ini"));
+			Properties prop = new Properties();
+			prop.load(inputStream);
+			String property = prop.getProperty(
+					"topologyForwarding.deleteAllFlow", "false");
+			return property.equals("true");
+		} catch (IOException e) {
+			logger.warn("cant open config.ini");
+			return false;
+		}
 	}
 
 	/**
@@ -148,6 +211,7 @@ public class TopologyForwarding implements IListenDataPacket {
 	 */
 	void stop() {
 		logger.info("Stopped");
+
 	}
 
 	static private Inet4Address intToInetAddress(int i) {
@@ -233,15 +297,8 @@ public class TopologyForwarding implements IListenDataPacket {
 			}
 
 			Flow flow = generateRouteToHostFlow(dstHost, incoming_node);
-			Status status = programmer.addFlow(incoming_node, flow);
-			if (!status.isSuccess()) {
-				logger.warn(
-						"SDN Plugin failed to program the flow: {}. The failure is: {}",
-						flow, status.getDescription());
+			if (!programFlow(incoming_node, dstHost, flow))
 				return PacketResult.IGNORED;
-			}
-			logger.info("Installed flow {} in node {}", flow, incoming_node);
-
 			sendPacket(inPkt, outputToDst(incoming_node, dstHost));
 
 			return PacketResult.CONSUME;
@@ -253,6 +310,23 @@ public class TopologyForwarding implements IListenDataPacket {
 			e.printStackTrace();
 		}
 		return PacketResult.IGNORED;
+	}
+
+	private boolean programFlow(Node incoming_node, HostNodeConnector dstHost,
+			Flow flow) {
+		Status status = programmer.addFlow(incoming_node, flow);
+		if (!status.isSuccess()) {
+			logger.warn(
+					"SDN Plugin failed to program the flow: {}. The failure is: {}",
+					flow, status.getDescription());
+			return false;
+		}
+		logger.info("Installed flow {} in node {}", flow, incoming_node);
+		_allFlows.put(flow, incoming_node);
+		if (!_hostFlows.containsKey(dstHost))
+			_hostFlows.put(dstHost, new LinkedList<Flow>());
+		_hostFlows.get(dstHost).add(flow);
+		return true;
 	}
 
 	private void sendPacket(RawPacket inPkt, NodeConnector dst_connector) {
@@ -267,4 +341,29 @@ public class TopologyForwarding implements IListenDataPacket {
 		}
 
 	}
+
+	@Override
+	public void notifyHTClient(HostNodeConnector host) {
+		logger.info("new host added: " + host);
+
+	}
+
+	@Override
+	public void notifyHTClientHostRemoved(HostNodeConnector host) {
+		logger.info("host removed: " + host.getNetworkAddressAsString());
+		removeHostFlows(host);
+	}
+
+	private void removeHostFlows(HostNodeConnector host) {
+		if (!_hostFlows.containsKey(host)) {
+			logger.warn("removed host has no flows, shouldnt happen");
+			return;
+		}
+		logger.info("removing host flows: " + host.getNetworkAddressAsString());
+		for (Flow flow : _hostFlows.get(host)) {
+			removeFlow(flow);
+		}
+		_hostFlows.remove(host);
+	}
+
 }
