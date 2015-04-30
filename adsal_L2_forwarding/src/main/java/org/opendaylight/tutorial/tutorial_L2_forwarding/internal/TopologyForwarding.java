@@ -302,6 +302,7 @@ public class TopologyForwarding implements IListenDataPacket, IfNewHostNotify {
 		Ethernet l2Pkt = (Ethernet) formattedPak;
 		Packet l3Pkt = l2Pkt.getPayload();
 		if (!(l3Pkt instanceof IPv4)) {
+			floodPacket(inPkt);
 			return PacketResult.IGNORED;
 		}
 		IPv4 ipPacket = (IPv4) l3Pkt;
