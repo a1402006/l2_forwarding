@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
@@ -263,6 +264,26 @@ public class TopologyForwarding implements IListenDataPacket, IfNewHostNotify {
 		return flow;
 	}
 
+	private void floodPacket(RawPacket inPkt) {
+		NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
+		Node incoming_node = incoming_connector.getNode();
+
+		Set<NodeConnector> nodeConnectors = this.switchManager
+				.getUpNodeConnectors(incoming_node);
+
+		for (NodeConnector p : nodeConnectors) {
+			if (!p.equals(incoming_connector)) {
+				try {
+					RawPacket destPkt = new RawPacket(inPkt);
+					destPkt.setOutgoingNodeConnector(p);
+					this.dataPacketService.transmitDataPacket(destPkt);
+				} catch (ConstructionException e2) {
+					continue;
+				}
+			}
+		}
+	}
+
 	@Override
 	public PacketResult receiveDataPacket(RawPacket inPkt) {
 		if (inPkt == null) {
@@ -291,9 +312,8 @@ public class TopologyForwarding implements IListenDataPacket, IfNewHostNotify {
 			dstHost = hostTracker.discoverHost(ipDest).get();
 
 			if (dstHost == null) {
-				logger.info("host not found: " + ipDest);
-				// floodPacket(inPkt);
-				return PacketResult.IGNORED;
+				floodPacket(inPkt);
+				return PacketResult.KEEP_PROCESSING;
 			}
 
 			Flow flow = generateRouteToHostFlow(dstHost, incoming_node);
